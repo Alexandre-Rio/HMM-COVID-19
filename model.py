@@ -1,3 +1,5 @@
+import warnings; warnings.simplefilter('ignore')  # hide warnings
+
 # standard libraries
 from matplotlib import pyplot as plt
 import numpy as np
@@ -29,8 +31,10 @@ theta['travel_prop'] = theta['passengers'] / theta['pop_Wuhan']
 
 initial_values = {'beta': theta['initial_r0'] * theta['recover'],
                   'sus': theta['pop_Wuhan'] - 1,
-                  'exp': 0,
-                  'inf': 1,
+                  'exp_1': 0,
+                  'exp_2': 0,
+                  'inf_1': 1/2,
+                  'inf_2': 1/2,
                   'Q': 0,
                   'D': 0,
                   'C': 0
@@ -62,28 +66,6 @@ class ExpD(TransformedDist):
         return - np.log(x)
 
 
-# Define model equations
-
-def sus(sus_prev, beta, inf, N):
-    return max(sus_prev - beta * sus_prev * inf / N, 0)
-
-def exp(t, exp_prev, beta, sus, inf, f, sigma, N, travel_restriction):
-    return exp_prev + (1 - (t < travel_restriction) * f) * beta * sus * inf / N - 2 * sigma * exp_prev
-
-def inf(inf_prev, exp_prev, sigma, gamma):
-    return inf_prev + 2 * sigma * exp_prev - 2 * gamma * inf_prev
-
-def Q(Q_prev, exp_prev, sigma, gamma, kappa):
-    factor = np.exp(- gamma * kappa)
-    return Q_prev + 2 * sigma * exp_prev * factor - kappa * Q_prev
-
-def D(D_prev, exp_prev, sigma, gamma, kappa):
-    factor = np.exp(- gamma * kappa)
-    return D_prev + 2 * sigma * exp_prev * factor
-
-def C(C_prev, Q_prev, kappa):
-    return C_prev + kappa * Q_prev
-
 
 # Define model object
 
@@ -94,8 +76,10 @@ class TransmissionModel(ssm.StateSpaceModel):
         init_var = OrderedDict()
         init_var['beta'] = Dirac(loc=self.initial_values['beta'])
         init_var['sus'] = Dirac(loc=self.initial_values['sus'])
-        init_var['exp'] = Dirac(loc=self.initial_values['exp'])
-        init_var['inf'] = Dirac(loc=self.initial_values['inf'])
+        init_var['exp_1'] = Dirac(loc=self.initial_values['exp_1'])
+        init_var['exp_2'] = Dirac(loc=self.initial_values['exp_2'])
+        init_var['inf_1'] = Dirac(loc=self.initial_values['inf_1'])
+        init_var['inf_2'] = Dirac(loc=self.initial_values['inf_2'])
         init_var['Q'] = Dirac(loc=self.initial_values['Q'])
         init_var['D'] = Dirac(loc=self.initial_values['D'])
         init_var['C'] = Dirac(loc=self.initial_values['C'])
@@ -104,19 +88,47 @@ class TransmissionModel(ssm.StateSpaceModel):
 
         return init_dist
 
+    # Define model transition functions
+    def sus(self, xp):
+        return np.maximum(xp['sus'] - xp['beta'] * xp['sus'] * (xp['inf_1'] + xp['inf_2']) / self.N, 0)
+
+    def exp_1(self, t, xp):
+        return xp['exp_1'] + \
+               (1 - (t < self.travel_restriction) * self.f) * \
+               xp['beta'] * xp['sus'] * (xp['inf_1'] + xp['inf_2']) / self.N - 2 * self.sigma * xp['exp_1']
+
+    def exp_2(self, xp):
+        return xp['exp_2'] + 2 * self.sigma * xp['exp_1'] - 2 * self.sigma * xp['exp_2']
+
+    def inf_1(self, xp):
+        return xp['inf_1'] + 2 * self.sigma * xp['exp_2'] - 2 * self.gamma * xp['inf_1']
+
+    def inf_2(self, xp):
+        return xp['inf_2'] + 2 * self.gamma * xp['inf_1'] - 2 * self.gamma * xp['inf_2']
+
+    def Q(self, xp):
+        factor = np.exp(- self.gamma * self.kappa)
+        return xp['Q'] + 2 * self.sigma * xp['exp_2'] * factor - self.kappa * xp['Q']
+
+    def D(self, xp):
+        factor = np.exp(- self.gamma * self.kappa)
+        return xp['D'] + 2 * self.sigma * xp['exp_2'] * factor
+
+    def C(self, xp):
+        return xp['C'] + self.kappa * xp['Q']
+
     def PX(self, t, xp):  # Distribution of X_t given X_{t-1}=xp (p=past)
 
         lat_var = OrderedDict()
         lat_var['beta'] = LinearD(ExpD(Normal(scale=self.a)), a=xp['beta'])
-        lat_var['inf'] = Cond(lambda x: Dirac(loc=inf(xp['inf'], xp['exp'], self.sigma, self.gamma)))
-        lat_var['sus'] = Cond(lambda x: Dirac(loc=sus(xp['sus'], x['beta'], x['inf'], self.N)))
-        lat_var['exp'] = Cond(
-            lambda x: Dirac(loc=exp(t, xp['exp'], x['beta'], x['sus'], x['inf'], self.f, self.sigma, self.N,
-                                    self.travel_restriction))
-        )
-        lat_var['Q'] = Cond(lambda x: Dirac(loc=Q(xp['Q'], xp['exp'], self.sigma, self.gamma, self.kappa)))
-        lat_var['D'] = Cond(lambda x: Dirac(loc=D(xp['D'], xp['exp'], self.sigma, self.gamma, self.kappa)))
-        lat_var['C'] = Cond(lambda x: Dirac(loc=C(xp['C'], xp['Q'], self.kappa)))
+        lat_var['sus'] = Dirac(loc=self.sus(xp))
+        lat_var['exp_1'] = Dirac(loc=self.exp_1(t, xp))
+        lat_var['exp_2'] = Dirac(loc=self.exp_2(xp))
+        lat_var['inf_1'] = Dirac(loc=self.inf_1(xp))
+        lat_var['inf_2'] = Dirac(loc=self.inf_2(xp))
+        lat_var['Q'] = Dirac(loc=self.Q(xp))
+        lat_var['D'] = Dirac(loc=self.D(xp))
+        lat_var['C'] = Dirac(loc=self.C(xp))
 
         trans_dist = StructDist(lat_var)
 
