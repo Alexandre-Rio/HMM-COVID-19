@@ -1,3 +1,7 @@
+'''
+Adapted from R scripts on https://github.com/adamkucharski/2020-ncov
+'''
+
 import numpy as np
 import pandas as pd
 from scipy.stats import poisson, binom, nbinom
