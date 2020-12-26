@@ -258,7 +258,7 @@ if __name__ == '__main__':
 
     # Simulate nb_simulations times from the model
     time_range = 82
-    nb_simulations = 100
+    nb_simulations = 1000
 
     model = TransmissionModelExtended(a=theta['brownian_vol'],
                               N=theta['pop_Wuhan'],
@@ -274,12 +274,21 @@ if __name__ == '__main__':
                               initial_values=initial_values_ext
                               )
 
+    hidden_states, observations = model.simulate(time_range)
 
     sim_states = []
     sim_data = []
     for sim in range(nb_simulations):
         hidden_states, observations = model.simulate(time_range)
+        for i in range(time_range):
+            hidden_states[i] = [hidden_states[i][0][j] for j in range(len(hidden_states[i][0]))]
+            observations[i] = [observations[i][0][j] for j in range(len(observations[i][0]))]
         sim_states.append(hidden_states)
         sim_data.append(observations)
+
+    sim_states, sim_data = np.array(sim_states), np.array(sim_data)
+    avg_sim_states = sim_states.mean(axis=0)
+    avg_sim_data = sim_data.mean(axis=0)
+
 
     end = True
