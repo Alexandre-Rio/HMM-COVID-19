@@ -11,7 +11,7 @@ import particles  # core module
 from particles.distributions import *  # where probability distributions are defined
 from particles import state_space_models as ssm  # where state-space models are defined
 
-__all__ = ['theta', 'initial_values', 'initial_values_ext', 'flight_passengers',
+__all__ = ['theta', 'initial_values', 'initial_values_ext', 'flight_passengers', 'relative_risk',
            'TransmissionModel', 'TransmissionModelExtended']
 
 # Set path
@@ -74,6 +74,11 @@ initial_values_ext = {'beta': theta['initial_r0'] * theta['recover'],
 flight_prop = pd.read_csv('data/flight_prop.csv', encoding='cp1252')
 flight_passengers = flight_prop['flight_prop.2'].values
 flight_passengers[np.isnan(flight_passengers)] = 0  # Fill NaN values
+
+# Relative risk of exporting cases (per country)
+relative_risk = pd.read_csv('data/connectivity_data_mobs.csv', encoding='cp1252')
+relative_risk = relative_risk.iloc[:20].to_numpy()
+relative_risk = dict(zip(relative_risk[:, 0], relative_risk[:, 1]))
 
 ####################################
 ##### DEFINE STATE SPACE MODEL #####
@@ -266,7 +271,12 @@ class TransmissionModelExtended(TransmissionModel):
         if self.use_validation:
             expected_obs['flight_int'] = Binomial(n=self.flight_passengers[t],
                                             p=(x['exp_2'] + (1 - self.omega) * (x['inf_1'] + x['inf_2'])) / self.N)
-            # expected_obs['reported_int'] = ...
+            for country in self.relative_risk.keys():
+                if t == 0:
+                    expected_obs['reported_int_' + country] = Poisson(rate=x['C_int'] * self.relative_risk[country])
+                elif t > 0:
+                    expected_obs['reported_int_' + country] = Poisson(rate=(x['C_int'] - xp['C_int']) *
+                                                                           self.relative_risk[country])
 
         obs_dist = StructDist(expected_obs)
 
@@ -276,7 +286,7 @@ if __name__ == '__main__':
 
     # Simulate nb_simulations times from the model
     time_range = 82
-    nb_simulations = 500
+    nb_simulations = 1
 
     model = TransmissionModelExtended(a=theta['brownian_vol'],
                               N=theta['pop_Wuhan'],
@@ -291,7 +301,8 @@ if __name__ == '__main__':
                               travel_restriction=theta['travel_restriction'],
                               initial_values=initial_values_ext,
                               flight_passengers=flight_passengers,
-                              use_validation = False
+                              relative_risk=relative_risk,
+                              use_validation = True
                               )
 
     hidden_states, observations = model.simulate(time_range)
