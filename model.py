@@ -1,13 +1,23 @@
 import warnings; warnings.simplefilter('ignore')  # hide warnings
+import os
 
 # standard libraries
 from matplotlib import pyplot as plt
 import numpy as np
+import pandas as pd
 
 # modules from particles
 import particles  # core module
 from particles.distributions import *  # where probability distributions are defined
 from particles import state_space_models as ssm  # where state-space models are defined
+
+__all__ = ['theta', 'initial_values', 'initial_values_ext', 'flight_passengers',
+           'TransmissionModel', 'TransmissionModelExtended']
+
+# Set path
+directory = os.getcwd()
+# sys.path.append(directory)
+os.chdir(directory)
 
 
 ##########################
@@ -24,7 +34,7 @@ theta = {'brownian_vol': 0.395,  #a
          'passengers': 3300,
          'travel_prop': None,  #f
          'reported_prop': 1,  #omega
-         'relative_report': 0.014,  #delta
+         'relative_report': 0.0066,  #delta
          'local_known_onsets': 0.16,  #pw
          'int_known_onsets': 0.47, #pt
          'travel_restriction': 63  #day on which travel restrictions have been put in place
@@ -59,6 +69,11 @@ initial_values_ext = {'beta': theta['initial_r0'] * theta['recover'],
                   'C': 0,
                   'C_int':0
                  }
+
+# Number of flight passengers from flight_prop (for validation)
+flight_prop = pd.read_csv('data/flight_prop.csv', encoding='cp1252')
+flight_passengers = flight_prop['flight_prop.2'].values
+flight_passengers[np.isnan(flight_passengers)] = 0  # Fill NaN values
 
 ####################################
 ##### DEFINE STATE SPACE MODEL #####
@@ -241,14 +256,17 @@ class TransmissionModelExtended(TransmissionModel):
             expected_obs['onset'] = Poisson(rate=x['D'] * self.omega * self.delta * self.pw)
             expected_obs['onset_int'] = Poisson(rate=x['D_int']* self.omega * self.pt)
             expected_obs['reported'] = Poisson(rate=x['C'] * self.omega * self.delta)
-            # expected_obs['reported_int'] = ...
-            # expected_obs['flight_inf'] = ...
+
         elif t > 0:
             expected_obs['onset'] = Poisson(rate=np.maximum(x['D'] - xp['D'], 0) * self.omega * self.delta * self.pw)
             expected_obs['onset_int'] = Poisson(rate=np.maximum(x['D_int'] - xp['D_int'], 0) * self.omega * self.pt)
             expected_obs['reported'] = Poisson(rate=np.maximum(x['C'] - xp['C'], 0) * self.omega * self.delta)
-            #expected_obs['reported_int'] = ...
-            #expected_obs['flight_inf'] = ...
+
+
+        if self.use_validation:
+            expected_obs['flight_int'] = Binomial(n=self.flight_passengers[t],
+                                            p=(x['exp_2'] + (1 - self.omega) * (x['inf_1'] + x['inf_2'])) / self.N)
+            # expected_obs['reported_int'] = ...
 
         obs_dist = StructDist(expected_obs)
 
@@ -258,7 +276,7 @@ if __name__ == '__main__':
 
     # Simulate nb_simulations times from the model
     time_range = 82
-    nb_simulations = 1000
+    nb_simulations = 500
 
     model = TransmissionModelExtended(a=theta['brownian_vol'],
                               N=theta['pop_Wuhan'],
@@ -271,7 +289,9 @@ if __name__ == '__main__':
                               pw=theta['local_known_onsets'],
                               pt=theta['int_known_onsets'],
                               travel_restriction=theta['travel_restriction'],
-                              initial_values=initial_values_ext
+                              initial_values=initial_values_ext,
+                              flight_passengers=flight_passengers,
+                              use_validation = False
                               )
 
     hidden_states, observations = model.simulate(time_range)
@@ -279,6 +299,7 @@ if __name__ == '__main__':
     sim_states = []
     sim_data = []
     for sim in range(nb_simulations):
+        print(sim)
         hidden_states, observations = model.simulate(time_range)
         for i in range(time_range):
             hidden_states[i] = [hidden_states[i][0][j] for j in range(len(hidden_states[i][0]))]

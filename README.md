@@ -27,12 +27,10 @@ Information about evacuation flights:
 
 The State-Space Model described in the Appendix is implemented in `model.py`.
 
-Model:
-*To be written*
 
 # SMC Filtering Algorithm
 
-The SMC filtering algorithm is implemented in `model.py`.
+The SMC filtering algorithm is implemented in `filtering.py`.
 
 # Other
 
