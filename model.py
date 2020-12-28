@@ -5,6 +5,7 @@ import os
 from matplotlib import pyplot as plt
 import numpy as np
 import pandas as pd
+import pdb
 
 # modules from particles
 import particles  # core module
@@ -25,7 +26,7 @@ os.chdir(directory)
 
 # Fixed parameters as given in the Appendix
 theta = {'a': 0.395,  # brownian_vol
-         'N': 1.10e7,  # pop_Wuhan
+         'N': int(1.10e7),  # pop_Wuhan
          'sigma': 1 / 5.2,  # incubation
          'kappa': 1 / 6.1,  # report
          'gamma': 1 / 2.9,  # recover
@@ -35,7 +36,7 @@ theta = {'a': 0.395,  # brownian_vol
          'omega': 1,  # reported_prop
          'delta': 0.0066,  # relative_report
          'pw': 0.16,  # local_known_onsets
-         'pt': 0.47, # int_known_onsets
+         'pt': 0.47,  # int_known_onsets
          'travel_restriction': 63  #day on which travel restrictions have been put in place
         }
 theta['f'] = theta['passengers'] / theta['N']
@@ -118,7 +119,7 @@ class TransmissionModelExtended(ssm.StateSpaceModel):
     # Define model transition functions
 
     def update_x(self, t, xp):
-        self.sus = np.maximum(xp['sus'] - xp['beta'] * xp['sus'] * (xp['inf_1'] + xp['inf_2']) / self.N, 0)
+        self.sus = np.maximum(xp['sus'] - xp['beta'] * xp['sus'] * (xp['inf_1'] + xp['inf_2']) / self.N, 0).astype('int64')
         self.exp_1 = xp['exp_1'] + (1 - (t < self.travel_restriction) * self.f) * \
                 xp['beta'] * xp['sus'] * (xp['inf_1'] + xp['inf_2']) / self.N - 2 * self.sigma * xp['exp_1']
         self.exp_2 = xp['exp_2'] + 2 * self.sigma * xp['exp_1'] - 2 * self.sigma * xp['exp_2']
@@ -172,10 +173,9 @@ class TransmissionModelExtended(ssm.StateSpaceModel):
             expected_obs['onset_int'] = Poisson(rate=np.maximum(x['D_int'] - xp['D_int'], 0) * self.omega * self.pt)
             expected_obs['reported'] = Poisson(rate=np.maximum(x['C'] - xp['C'], 0) * self.omega * self.delta)
 
-
         if self.use_validation:
             expected_obs['flight_int'] = Binomial(n=self.flight_passengers[t],
-                                            p=(x['exp_2'] + (1 - self.omega) * (x['inf_1'] + x['inf_2'])) / self.N)
+                                                  p=(x['exp_2'] + (1 - self.omega) * (x['inf_1'] + x['inf_2'])) / self.N)
             for country in self.relative_risk.keys():
                 if t == 0:
                     expected_obs['reported_int_' + country] = Poisson(rate=x['C_int'] * self.relative_risk[country])
@@ -212,5 +212,7 @@ if __name__ == '__main__':
     sim_states, sim_data = np.array(sim_states), np.array(sim_data)
     avg_sim_states = sim_states.mean(axis=0)
     avg_sim_data = sim_data.mean(axis=0)
+
+    pdb.set_trace()
 
     end = True

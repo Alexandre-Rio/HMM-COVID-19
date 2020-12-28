@@ -16,7 +16,7 @@ from scipy.stats import *
 from particles.mcmc import PMMH
 import particles.distributions as distrib  # where probability distributions are defined
 from particles import state_space_models as ssm  # where state-space models are defined
-from model import TransmissionModelExtended
+from model import *
 from collections import OrderedDict
 from data_processing import format_data, int_case_conf_dict, flight_prop_processed
 
@@ -45,38 +45,6 @@ for field in data_dict.keys():
 # Format data
 data = format_data(data_dict)
 
-
-theta = {'brownian_vol': 0.395,  #a
-         'pop_Wuhan': 1.10e7,  #N
-         'incubation': 1 / 5.2,  #sigma
-         'report': 1 / 6.1,  #kappa
-         'recover': 1 / 2.9,  #gamma
-         'initial_r0': 2.5,
-         'passengers': 3300,
-         'travel_prop': None,  #f
-         'reported_prop': 1,  #omega
-         'relative_report': 0.0066,  #delta
-         'local_known_onsets': 0.16,  #pw
-         'int_known_onsets': 0.47, #pt
-         'travel_restriction': 63  #day on which travel restrictions have been put in place
-        }
-theta['travel_prop'] = theta['passengers'] / theta['pop_Wuhan']
-
-initial_values_ext = {'beta': theta['initial_r0'] * theta['recover'],
-                  'sus': theta['pop_Wuhan'] - 1,
-                  'exp_1': 0,
-                  'exp_2': 0,
-                  'exp_1_int': 0,
-                  'exp_2_int': 0,
-                  'inf_1': 1/2,
-                  'inf_2': 1/2,
-                  'Q': 0,
-                  'Q_int': 0,
-                  'D': 0,
-                  'D_int':0,
-                  'C': 0,
-                  'C_int':0
-                 }
 
 # Number of flight passengers from flight_prop (for validation)
 flight_prop = pd.read_csv('data/flight_prop.csv', encoding='cp1252')
@@ -140,6 +108,8 @@ if __name__ == '__main__':
                 verbose=1
                 # theta0=theta  # structured array of length 1
     )
+
+    pdb.set_trace()
 
     pmmh.run()
 

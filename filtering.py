@@ -42,6 +42,7 @@ for field in data_dict.keys():
 # Format data
 data = format_data(data_dict)
 
+
 #####################################################
 ############## FILTERING ############################
 #####################################################
@@ -66,6 +67,8 @@ if __name__ == '__main__':
         # Define Particle Filtering algorithm
         pf = particles.SMC(fk=fk_model, N=n_particles, resampling=resampling_mtd, store_history=True, summaries=False)
         # Run algorithm
+        pdb.set_trace()
+
         pf.run()
         # Sample latent variables from SMC-estimated distribution
         sample = pf.hist.backward_sampling(1)
