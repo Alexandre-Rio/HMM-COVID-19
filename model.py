@@ -11,8 +11,7 @@ import particles  # core module
 from particles.distributions import *  # where probability distributions are defined
 from particles import state_space_models as ssm  # where state-space models are defined
 
-__all__ = ['theta', 'initial_values', 'initial_values_ext', 'flight_passengers', 'relative_risk',
-           'TransmissionModel', 'TransmissionModelExtended']
+__all__ = ['theta', 'TransmissionModelExtended']
 
 # Set path
 directory = os.getcwd()
@@ -25,60 +24,22 @@ os.chdir(directory)
 ##########################
 
 # Fixed parameters as given in the Appendix
-theta = {'brownian_vol': 0.395,  #a
-         'pop_Wuhan': 1.10e7,  #N
-         'incubation': 1 / 5.2,  #sigma
-         'report': 1 / 6.1,  #kappa
-         'recover': 1 / 2.9,  #gamma
+theta = {'a': 0.395,  # brownian_vol
+         'N': 1.10e7,  # pop_Wuhan
+         'sigma': 1 / 5.2,  # incubation
+         'kappa': 1 / 6.1,  # report
+         'gamma': 1 / 2.9,  # recover
          'initial_r0': 2.5,
          'passengers': 3300,
-         'travel_prop': None,  #f
-         'reported_prop': 1,  #omega
-         'relative_report': 0.0066,  #delta
-         'local_known_onsets': 0.16,  #pw
-         'int_known_onsets': 0.47, #pt
+         'f': None,  # travel_prop
+         'omega': 1,  # reported_prop
+         'delta': 0.0066,  # relative_report
+         'pw': 0.16,  # local_known_onsets
+         'pt': 0.47, # int_known_onsets
          'travel_restriction': 63  #day on which travel restrictions have been put in place
         }
-theta['travel_prop'] = theta['passengers'] / theta['pop_Wuhan']
+theta['f'] = theta['passengers'] / theta['N']
 
-# Initial values for local simplified model
-initial_values = {'beta': theta['initial_r0'] * theta['recover'],
-                  'sus': theta['pop_Wuhan'] - 1,
-                  'exp_1': 0,
-                  'exp_2': 0,
-                  'inf_1': 1/2,
-                  'inf_2': 1/2,
-                  'Q': 0,
-                  'D': 0,
-                  'C': 0
-                 }
-
-# Initial values for extended model
-initial_values_ext = {'beta': theta['initial_r0'] * theta['recover'],
-                  'sus': theta['pop_Wuhan'] - 1,
-                  'exp_1': 0,
-                  'exp_2': 0,
-                  'exp_1_int': 0,
-                  'exp_2_int': 0,
-                  'inf_1': 1/2,
-                  'inf_2': 1/2,
-                  'Q': 0,
-                  'Q_int': 0,
-                  'D': 0,
-                  'D_int':0,
-                  'C': 0,
-                  'C_int':0
-                 }
-
-# Number of flight passengers from flight_prop (for validation)
-flight_prop = pd.read_csv('data/flight_prop.csv', encoding='cp1252')
-flight_passengers = flight_prop['flight_prop.2'].values
-flight_passengers[np.isnan(flight_passengers)] = 0  # Fill NaN values
-
-# Relative risk of exporting cases (per country)
-relative_risk = pd.read_csv('data/connectivity_data_mobs.csv', encoding='cp1252')
-relative_risk = relative_risk.iloc[:20].to_numpy()
-relative_risk = dict(zip(relative_risk[:, 0], relative_risk[:, 1]))
 
 ####################################
 ##### DEFINE STATE SPACE MODEL #####
@@ -109,86 +70,28 @@ class ExpD(TransformedDist):
 
 # Define model object
 
-class TransmissionModel(ssm.StateSpaceModel):
+class TransmissionModelExtended(ssm.StateSpaceModel):
+    def __init__(self, *args, **kwargs):
+        super(TransmissionModelExtended, self).__init__()
 
-    def PX0(self):  # Distribution of X_0
+        for k, v in kwargs.items():
+            setattr(self, k, v)
 
-        init_var = OrderedDict()
-        init_var['beta'] = LinearD(ExpD(Normal(scale=self.a)), a=self.initial_values['beta'])
-        init_var['sus'] = Dirac(loc=self.initial_values['sus'])
-        init_var['exp_1'] = Dirac(loc=self.initial_values['exp_1'])
-        init_var['exp_2'] = Dirac(loc=self.initial_values['exp_2'])
-        init_var['inf_1'] = Dirac(loc=self.initial_values['inf_1'])
-        init_var['inf_2'] = Dirac(loc=self.initial_values['inf_2'])
-        init_var['Q'] = Dirac(loc=self.initial_values['Q'])
-        init_var['D'] = Dirac(loc=self.initial_values['D'])
-        init_var['C'] = Dirac(loc=self.initial_values['C'])
+        self.initial_values = {'beta': theta['initial_r0'] * theta['gamma'], 'sus': theta['N'] - 1,
+                               'exp_1': 0, 'exp_2': 0, 'exp_1_int': 0, 'exp_2_int': 0, 'inf_1': 1/2, 'inf_2': 1/2,
+                               'Q': 0, 'Q_int': 0, 'D': 0, 'D_int': 0, 'C': 0, 'C_int': 0
+                               }
+        # Number of flight passengers from flight_prop (for validation)
+        flight_prop = pd.read_csv('data/flight_prop.csv', encoding='cp1252')
+        self.flight_passengers = flight_prop['flight_prop.2'].values
+        self.flight_passengers[np.isnan(self.flight_passengers)] = 0  # Fill NaN values
 
-        init_dist = StructDist(init_var)
+        # Relative risk of exporting cases (per country)
+        self.relative_risk = pd.read_csv('data/connectivity_data_mobs.csv', encoding='cp1252')
+        self.relative_risk = self.relative_risk.iloc[:20].to_numpy()
+        self.relative_risk = dict(zip(self.relative_risk[:, 0], self.relative_risk[:, 1]))
 
-        return init_dist
-
-    # Define model transition functions
-    def sus(self, xp):
-        return np.maximum(xp['sus'] - xp['beta'] * xp['sus'] * (xp['inf_1'] + xp['inf_2']) / self.N, 0)
-
-    def exp_1(self, t, xp):
-        return xp['exp_1'] + \
-               (1 - (t < self.travel_restriction) * self.f) * \
-               xp['beta'] * xp['sus'] * (xp['inf_1'] + xp['inf_2']) / self.N - 2 * self.sigma * xp['exp_1']
-
-    def exp_2(self, xp):
-        return xp['exp_2'] + 2 * self.sigma * xp['exp_1'] - 2 * self.sigma * xp['exp_2']
-
-    def inf_1(self, xp):
-        return xp['inf_1'] + 2 * self.sigma * xp['exp_2'] - 2 * self.gamma * xp['inf_1']
-
-    def inf_2(self, xp):
-        return xp['inf_2'] + 2 * self.gamma * xp['inf_1'] - 2 * self.gamma * xp['inf_2']
-
-    def Q(self, xp):
-        factor = np.exp(- self.gamma * self.kappa)
-        return xp['Q'] + 2 * self.sigma * xp['exp_2'] * factor - self.kappa * xp['Q']
-
-    def D(self, xp):
-        factor = np.exp(- self.gamma * self.kappa)
-        return xp['D'] + 2 * self.sigma * xp['exp_2'] * factor
-
-    def C(self, xp):
-        return xp['C'] + self.kappa * xp['Q']
-
-    def PX(self, t, xp):  # Distribution of X_t given X_{t-1}=xp (p=past)
-
-        lat_var = OrderedDict()
-        lat_var['beta'] = LinearD(ExpD(Normal(scale=self.a)), a=xp['beta'])
-        lat_var['sus'] = Dirac(loc=self.sus(xp))
-        lat_var['exp_1'] = Dirac(loc=self.exp_1(t, xp))
-        lat_var['exp_2'] = Dirac(loc=self.exp_2(xp))
-        lat_var['inf_1'] = Dirac(loc=self.inf_1(xp))
-        lat_var['inf_2'] = Dirac(loc=self.inf_2(xp))
-        lat_var['Q'] = Dirac(loc=self.Q(xp))
-        lat_var['D'] = Dirac(loc=self.D(xp))
-        lat_var['C'] = Dirac(loc=self.C(xp))
-
-        trans_dist = StructDist(lat_var)
-
-        return trans_dist
-
-    def PY(self, t, xp, x):  # Distribution of Y_t given X_t=x (and possibly X_{t-1}=xp)
-
-        expected_obs = OrderedDict()
-        if t == 0:
-            expected_obs['onset'] = Poisson(rate=x['D'] * self.omega * self.delta * self.pw)
-            expected_obs['reported'] = Poisson(rate=x['C'] * self.omega * self.delta)
-        elif t > 0:
-            expected_obs['onset'] = Poisson(rate=np.maximum(x['D'] - xp['D'], 0) * self.omega * self.delta * self.pw)
-            expected_obs['reported'] = Poisson(rate=np.maximum(x['C'] - xp['C'], 0) * self.omega * self.delta)
-
-        obs_dist = StructDist(expected_obs)
-
-        return obs_dist
-
-class TransmissionModelExtended(TransmissionModel):
+        self.use_validation = True
 
     def PX0(self):  # Distribution of X_0
 
@@ -212,43 +115,45 @@ class TransmissionModelExtended(TransmissionModel):
 
         return init_dist
 
-    # Define model transition functions for international travelers
-    def exp_1_int(self, t, xp):
-        return xp['exp_1_int'] + \
-               (t < self.travel_restriction) * self.f * \
-               xp['beta'] * xp['sus'] * (xp['inf_1'] + xp['inf_2']) / self.N - 2 * self.sigma * xp['exp_1_int']
+    # Define model transition functions
 
-    def exp_2_int(self, xp):
-        return xp['exp_2_int'] + 2 * self.sigma * xp['exp_1_int'] - 2 * self.sigma * xp['exp_2_int']
+    def update_x(self, t, xp):
+        self.sus = np.maximum(xp['sus'] - xp['beta'] * xp['sus'] * (xp['inf_1'] + xp['inf_2']) / self.N, 0)
+        self.exp_1 = xp['exp_1'] + (1 - (t < self.travel_restriction) * self.f) * \
+                xp['beta'] * xp['sus'] * (xp['inf_1'] + xp['inf_2']) / self.N - 2 * self.sigma * xp['exp_1']
+        self.exp_2 = xp['exp_2'] + 2 * self.sigma * xp['exp_1'] - 2 * self.sigma * xp['exp_2']
+        self.inf_1 = xp['inf_1'] + 2 * self.sigma * xp['exp_2'] - 2 * self.gamma * xp['inf_1']
+        self.inf_2 = xp['inf_2'] + 2 * self.gamma * xp['inf_1'] - 2 * self.gamma * xp['inf_2']
+        self.Q = xp['Q'] + 2 * self.sigma * xp['exp_2'] * np.exp(- self.gamma * self.kappa) - self.kappa * xp['Q']
+        self.D = xp['D'] + 2 * self.sigma * xp['exp_2'] * np.exp(- self.gamma * self.kappa)
+        self.C = xp['C'] + self.kappa * xp['Q']
+        self.exp_1_int = xp['exp_1_int'] + (t < self.travel_restriction) * self.f * \
+                    xp['beta'] * xp['sus'] * (xp['inf_1'] + xp['inf_2']) / self.N - 2 * self.sigma * xp['exp_1_int']
+        self.exp_2_int = xp['exp_2_int'] + 2 * self.sigma * xp['exp_1_int'] - 2 * self.sigma * xp['exp_2_int']
+        self.Q_int = xp['Q_int'] + 2 * self.sigma * xp['exp_2_int'] * np.exp(- self.gamma * self.kappa) - self.kappa * xp['Q_int']
+        self.D_int = xp['D_int'] + 2 * self.sigma * xp['exp_2_int'] * np.exp(- self.gamma * self.kappa)
+        self.C_int = xp['C_int'] + self.kappa * xp['Q_int']
 
-    def Q_int(self, xp):
-        factor = np.exp(- self.gamma * self.kappa)
-        return xp['Q_int'] + 2 * self.sigma * xp['exp_2_int'] * factor - self.kappa * xp['Q_int']
-
-    def D_int(self, xp):
-        factor = np.exp(- self.gamma * self.kappa)
-        return xp['D_int'] + 2 * self.sigma * xp['exp_2_int'] * factor
-
-    def C_int(self, xp):
-        return xp['C_int'] + self.kappa * xp['Q_int']
 
     def PX(self, t, xp):  # Distribution of X_t given X_{t-1}=xp (p=past)
 
+        self.update_x(t, xp)
+
         lat_var = OrderedDict()
         lat_var['beta'] = LinearD(ExpD(Normal(scale=self.a)), a=xp['beta'])
-        lat_var['sus'] = Dirac(loc=self.sus(xp))
-        lat_var['exp_1'] = Dirac(loc=self.exp_1(t, xp))
-        lat_var['exp_2'] = Dirac(loc=self.exp_2(xp))
-        lat_var['exp_1_int'] = Dirac(loc=self.exp_1_int(t, xp))
-        lat_var['exp_2_int'] = Dirac(loc=self.exp_2_int(xp))
-        lat_var['inf_1'] = Dirac(loc=self.inf_1(xp))
-        lat_var['inf_2'] = Dirac(loc=self.inf_2(xp))
-        lat_var['Q'] = Dirac(loc=self.Q(xp))
-        lat_var['Q_int'] = Dirac(loc=self.Q_int(xp))
-        lat_var['D'] = Dirac(loc=self.D(xp))
-        lat_var['D_int'] = Dirac(loc=self.D_int(xp))
-        lat_var['C'] = Dirac(loc=self.C(xp))
-        lat_var['C_int'] = Dirac(loc=self.C_int(xp))
+        lat_var['sus'] = Dirac(loc=self.sus)
+        lat_var['exp_1'] = Dirac(loc=self.exp_1)
+        lat_var['exp_2'] = Dirac(loc=self.exp_2)
+        lat_var['exp_1_int'] = Dirac(loc=self.exp_1_int)
+        lat_var['exp_2_int'] = Dirac(loc=self.exp_2_int)
+        lat_var['inf_1'] = Dirac(loc=self.inf_1)
+        lat_var['inf_2'] = Dirac(loc=self.inf_2)
+        lat_var['Q'] = Dirac(loc=self.Q)
+        lat_var['Q_int'] = Dirac(loc=self.Q_int)
+        lat_var['D'] = Dirac(loc=self.D)
+        lat_var['D_int'] = Dirac(loc=self.D_int)
+        lat_var['C'] = Dirac(loc=self.C)
+        lat_var['C_int'] = Dirac(loc=self.C_int)
 
         trans_dist = StructDist(lat_var)
 
@@ -259,7 +164,7 @@ class TransmissionModelExtended(TransmissionModel):
         expected_obs = OrderedDict()
         if t == 0:
             expected_obs['onset'] = Poisson(rate=x['D'] * self.omega * self.delta * self.pw)
-            expected_obs['onset_int'] = Poisson(rate=x['D_int']* self.omega * self.pt)
+            expected_obs['onset_int'] = Poisson(rate=x['D_int'] * self.omega * self.pt)
             expected_obs['reported'] = Poisson(rate=x['C'] * self.omega * self.delta)
 
         elif t > 0:
@@ -282,28 +187,14 @@ class TransmissionModelExtended(TransmissionModel):
 
         return obs_dist
 
+
 if __name__ == '__main__':
 
     # Simulate nb_simulations times from the model
     time_range = 82
     nb_simulations = 1
 
-    model = TransmissionModelExtended(a=theta['brownian_vol'],
-                              N=theta['pop_Wuhan'],
-                              sigma=theta['incubation'],
-                              kappa=theta['report'],
-                              gamma=theta['recover'],
-                              f=theta['travel_prop'],
-                              omega=theta['reported_prop'],
-                              delta=theta['relative_report'],
-                              pw=theta['local_known_onsets'],
-                              pt=theta['int_known_onsets'],
-                              travel_restriction=theta['travel_restriction'],
-                              initial_values=initial_values_ext,
-                              flight_passengers=flight_passengers,
-                              relative_risk=relative_risk,
-                              use_validation = True
-                              )
+    model = TransmissionModelExtended(**theta)
 
     hidden_states, observations = model.simulate(time_range)
 
@@ -321,6 +212,5 @@ if __name__ == '__main__':
     sim_states, sim_data = np.array(sim_states), np.array(sim_data)
     avg_sim_states = sim_states.mean(axis=0)
     avg_sim_data = sim_data.mean(axis=0)
-
 
     end = True

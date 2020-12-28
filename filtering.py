@@ -7,6 +7,7 @@ import particles
 from particles import state_space_models as ssm
 from model import *
 from data_processing import format_data, int_case_conf_dict, flight_prop_processed
+import pdb
 
 ##############################################
 ########### LOAD AND FORMAT DATA #############
@@ -28,6 +29,7 @@ data_dict = {'onset': local_case_data_onset.to_numpy(),
            'onset_int': int_case_onset.to_numpy(),
            'reported': local_case_data_conf.to_numpy()
            }
+
 if use_validation:
     data_dict['flight_int'] = flight_prop
     for country in int_case_conf.keys():
@@ -45,22 +47,7 @@ data = format_data(data_dict)
 #####################################################
 
 # Define model
-model = TransmissionModelExtended(a=theta['brownian_vol'],
-                              N=theta['pop_Wuhan'],
-                              sigma=theta['incubation'],
-                              kappa=theta['report'],
-                              gamma=theta['recover'],
-                              f=theta['travel_prop'],
-                              omega=theta['reported_prop'],
-                              delta=theta['relative_report'],
-                              pw=theta['local_known_onsets'],
-                              pt=theta['int_known_onsets'],
-                              travel_restriction=theta['travel_restriction'],
-                              initial_values=initial_values_ext,
-                              flight_passengers=flight_passengers,
-                              relative_risk=relative_risk,
-                              use_validation = use_validation
-                              )
+model = TransmissionModelExtended(**theta)
 
 # Define Feyman-Kac model
 fk_model = ssm.Bootstrap(ssm=model, data=data)
@@ -87,9 +74,10 @@ if __name__ == '__main__':
         samples = samples[0]
     samples = np.array(samples)
 
+
     # Plot estimated R0
     x = np.arange(time_range)
-    r0 = samples['beta'] / theta['recover']
+    r0 = samples['beta'] / theta['gamma']
     r0_mean = r0.mean(axis=0)
     r0_std = r0.std(axis=0)
     r0_ci = 1.96 * r0_std / np.sqrt(n_runs)
