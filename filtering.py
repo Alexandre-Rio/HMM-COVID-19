@@ -70,7 +70,7 @@ if __name__ == '__main__':
     # Define SMC algorithm parameters
     n_particles = 2000  # Number of particles
     n_runs = 200  # Number of runs
-    resampling_mtd = 'multinomial'
+    resampling_mtd = 'multinomial_once'
 
     # Run algorithm n_runs times / for one run, just do "pf.run()"
     samples = []
