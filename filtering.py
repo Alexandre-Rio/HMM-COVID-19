@@ -58,7 +58,7 @@ if __name__ == '__main__':
     # Define SMC algorithm parameters
     n_particles = 2000  # Number of particles
     n_runs = 200  # Number of runs
-    resampling_mtd = 'multinomial_once'
+    resampling_mtd = 'multinomial'
 
     # Run algorithm n_runs times / for one run, just do "pf.run()"
     samples = []
@@ -67,7 +67,7 @@ if __name__ == '__main__':
         # Define Particle Filtering algorithm
         pf = particles.SMC(fk=fk_model, N=n_particles, resampling=resampling_mtd, store_history=True, summaries=False)
         # Run algorithm
-        pdb.set_trace()
+        # pdb.set_trace()
 
         pf.run()
         # Sample latent variables from SMC-estimated distribution

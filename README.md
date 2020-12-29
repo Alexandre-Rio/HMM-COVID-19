@@ -23,6 +23,34 @@ Information about evacuation flights:
 - *flight_info*: 1 if one or several passengers have been tested positive in evacuation flights. 0 otherwise. All countries considered.
 - *flight_prop*: First column indicates the number of passengers that have been tested positive in evacuation flights. Second column indicates the total number of passengers traveling in those evacuation flights. This allows to compute the proportion of passengers on evacuation flights that tested positive for SARS-CoV-2. All countries considered.
 
+# Particles
+
+There are a lot of missing values in the data. To deal with it,
+the authors set the likelihood to zero for a missing value. 
+
+In order to reproduce this idea straightforwardly with
+`particles`, just change the `logpdf` function of 
+classes `Poisson` and `Binomial` (the two distributions 
+we use to fit the data in the model).
+
+`Poisson`
+```
+    def logpdf(self, x):
+        if np.isnan(x):
+            return 0
+        else:
+            return stats.poisson.logpmf(x, self.rate)
+```
+
+`Binomial`
+```
+    def logpdf(self, x):
+        if np.isnan(x):
+            return 0
+        else:
+            return stats.binom.logpmf(x, self.n, self.p)
+```
+
 # State-Space Model
 
 The State-Space Model described in the Appendix is implemented in `model.py`.

@@ -72,7 +72,7 @@ def format_data(data_dict: dict):
     for t in range(time_range):
         data_t = OrderedDict()
         for field in data_dict.keys():
-            data_dict[field][np.isnan(data_dict[field])] = 0
+            # data_dict[field][np.isnan(data_dict[field])] = 0
             data_t[field] = Dirac(loc=data_dict[field][t])
         data_t = StructDist(data_t)
         data.append(data_t.rvs())
