@@ -78,10 +78,19 @@ class TransmissionModelExtended(ssm.StateSpaceModel):
         for k, v in kwargs.items():
             setattr(self, k, v)
 
-        self.initial_values = {'beta': theta['initial_r0'] * theta['gamma'], 'sus': theta['N'] - 1,
+        # Fixed args
+        self.N = int(1.10e7)
+        self.travel_restriction = 63
+        self.initial_r0 = 2.5
+        self.passengers = 3300
+        self.f = self.passengers / self.N
+
+        self.initial_values = {'beta': self.initial_r0 * theta['gamma'], 'sus': self.N - 1,
                                'exp_1': 0, 'exp_2': 0, 'exp_1_int': 0, 'exp_2_int': 0, 'inf_1': 1/2, 'inf_2': 1/2,
                                'Q': 0, 'Q_int': 0, 'D': 0, 'D_int': 0, 'C': 0, 'C_int': 0
                                }
+
+
         # Number of flight passengers from flight_prop (for validation)
         flight_prop = pd.read_csv('data/flight_prop.csv', encoding='cp1252')
         self.flight_passengers = flight_prop['flight_prop.2'].values

@@ -63,7 +63,10 @@ class Erlang(distrib.LocScaleDist):
         return erlang.rvs(a=1, loc=self.loc, scale=self.scale,
                           size=self.shape(size))
     def logpdf(self, x):
-        return erlang.logpdf(x, a=1, loc=self.loc, scale=self.scale)
+        if np.isnan(x):
+            return 0
+        else:
+            return erlang.logpdf(x, a=1, loc=self.loc, scale=self.scale)
     def ppf(self, u):
         return erlang.ppf(u, a=1, loc=self.loc, scale=self.scale)
 
@@ -73,7 +76,10 @@ class Exponential(distrib.LocScaleDist):
         return expon.rvs(loc=self.loc, scale=self.scale,
                          size=self.shape(size))
     def logpdf(self, x):
-        return expon.logpdf(x, loc=self.loc, scale=self.scale)
+        if np.isnan(x):
+            return 0
+        else:
+            return expon.logpdf(x, loc=self.loc, scale=self.scale)
     def ppf(self, u):
         return expon.ppf(u, loc=self.loc, scale=self.scale)
 
@@ -87,13 +93,14 @@ if __name__ == '__main__':
 
     def prior_distributions():
         prior = OrderedDict()
-        prior['a'] = distrib.Normal(0.395, 1)
+        prior['a'] = distrib.Gamma(1, 2)
         prior['sigma'] = Erlang(scale=5.2)
         prior['kappa'] = Exponential(scale=6.1)
         prior['gamma'] = Erlang(scale=2.9)
         prior['delta'] = distrib.Uniform(0, 1)
         prior['pw'] = distrib.Uniform(0, 1)
         prior['pt'] = distrib.Uniform(0, 1)
+        prior['omega'] = distrib.Uniform(0, 1)
         return distrib.StructDist(prior)
 
     prior = prior_distributions()
@@ -104,16 +111,13 @@ if __name__ == '__main__':
                 prior=prior,  # StructDist
                 data=data,  # list-like
                 fk_cls=ssm.Bootstrap,
-                Nx=args.nx,
+                Nx=int(args.nx),
                 verbose=1
                 # theta0=theta  # structured array of length 1
     )
 
-    pdb.set_trace()
-
     pmmh.run()
 
-    pdb.set_trace()
 
 
 
