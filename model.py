@@ -27,9 +27,9 @@ os.chdir(directory)
 # Fixed parameters as given in the Appendix
 theta = {'a': 0.395,  # brownian_vol
          'N': int(1.10e7),  # pop_Wuhan
-         'sigma': 1 / 5.2,  # incubation
-         'kappa': 1 / 6.1,  # report
-         'gamma': 1 / 2.9,  # recover
+         'sigma': 5.2,  # incubation
+         'kappa': 6.1,  # report
+         'gamma': 2.9,  # recover
          'initial_r0': 2.5,
          'passengers': 3300,
          'f': None,  # travel_prop
@@ -85,7 +85,12 @@ class TransmissionModelExtended(ssm.StateSpaceModel):
         self.passengers = 3300
         self.f = self.passengers / self.N
 
-        self.initial_values = {'beta': self.initial_r0 * theta['gamma'], 'sus': self.N - 1,
+        # inv
+        self.gamma = 1 / self.gamma
+        self.sigma = 1 / self.sigma
+        self.kappa = 1 / self.kappa
+
+        self.initial_values = {'beta': self.initial_r0 * self.gamma, 'sus': self.N - 1,
                                'exp_1': 0, 'exp_2': 0, 'exp_1_int': 0, 'exp_2_int': 0, 'inf_1': 1/2, 'inf_2': 1/2,
                                'Q': 0, 'Q_int': 0, 'D': 0, 'D_int': 0, 'C': 0, 'C_int': 0
                                }
@@ -143,7 +148,6 @@ class TransmissionModelExtended(ssm.StateSpaceModel):
         self.Q_int = xp['Q_int'] + 2 * self.sigma * xp['exp_2_int'] * np.exp(- self.gamma * self.kappa) - self.kappa * xp['Q_int']
         self.D_int = xp['D_int'] + 2 * self.sigma * xp['exp_2_int'] * np.exp(- self.gamma * self.kappa)
         self.C_int = xp['C_int'] + self.kappa * xp['Q_int']
-
 
     def PX(self, t, xp):  # Distribution of X_t given X_{t-1}=xp (p=past)
 
@@ -222,6 +226,5 @@ if __name__ == '__main__':
     avg_sim_states = sim_states.mean(axis=0)
     avg_sim_data = sim_data.mean(axis=0)
 
-    pdb.set_trace()
 
     end = True

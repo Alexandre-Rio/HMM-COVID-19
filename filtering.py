@@ -67,7 +67,7 @@ if __name__ == '__main__':
         # Define Particle Filtering algorithm
         pf = particles.SMC(fk=fk_model, N=n_particles, resampling=resampling_mtd, store_history=True, summaries=False)
         # Run algorithm
-        pdb.set_trace()
+        # pdb.set_trace()
 
         pf.run()
         # Sample latent variables from SMC-estimated distribution
@@ -80,7 +80,7 @@ if __name__ == '__main__':
 
     # Plot estimated R0
     x = np.arange(time_range)
-    r0 = samples['beta'] / theta['gamma']
+    r0 = samples['beta'] * theta['gamma']
     r0_mean = r0.mean(axis=0)
     r0_std = r0.std(axis=0)
     r0_ci = 1.96 * r0_std / np.sqrt(n_runs)

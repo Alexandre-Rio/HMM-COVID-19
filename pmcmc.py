@@ -95,7 +95,7 @@ if __name__ == '__main__':
         prior = OrderedDict()
         prior['a'] = distrib.Gamma(1, 2)
         prior['sigma'] = Erlang(scale=5.2)
-        prior['kappa'] = Exponential(scale=6.1)
+        prior['kappa'] = Exponential(scale=3)
         prior['gamma'] = Erlang(scale=2.9)
         prior['delta'] = distrib.Uniform(0, 1)
         prior['pw'] = distrib.Uniform(0, 1)
@@ -112,11 +112,14 @@ if __name__ == '__main__':
                 data=data,  # list-like
                 fk_cls=ssm.Bootstrap,
                 Nx=int(args.nx),
-                verbose=1
+                verbose=20
                 # theta0=theta  # structured array of length 1
     )
 
     pmmh.run()
+    pdb.set_trace()
+
+   # pdb.set_trace()
 
 
 
