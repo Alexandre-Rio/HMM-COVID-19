@@ -106,7 +106,7 @@ class TransmissionModelExtended(ssm.StateSpaceModel):
         self.relative_risk = self.relative_risk.iloc[:20].to_numpy()
         self.relative_risk = dict(zip(self.relative_risk[:, 0], self.relative_risk[:, 1]))
 
-        self.use_validation = True
+        self.use_validation = False  # True
 
     def PX0(self):  # Distribution of X_0
 
@@ -179,16 +179,18 @@ class TransmissionModelExtended(ssm.StateSpaceModel):
         if t == 0:
             expected_obs['onset'] = Poisson(rate=x['D'] * self.omega * self.delta * self.pw)
             expected_obs['onset_int'] = Poisson(rate=x['D_int'] * self.omega * self.pt)
-            expected_obs['reported'] = Poisson(rate=x['C'] * self.omega * self.delta)
+            # expected_obs['reported'] = Poisson(rate=x['C'] * self.omega * self.delta)
+            expected_obs['flight_int'] = Binomial(n=self.flight_passengers[t], p=(x['exp_2'] + (1 - self.omega) *
+                                                                                  (x['inf_1'] + x['inf_2'])) / self.N)  # x['exp_1']
 
         elif t > 0:
             expected_obs['onset'] = Poisson(rate=np.maximum(x['D'] - xp['D'], 0) * self.omega * self.delta * self.pw)
             expected_obs['onset_int'] = Poisson(rate=np.maximum(x['D_int'] - xp['D_int'], 0) * self.omega * self.pt)
-            expected_obs['reported'] = Poisson(rate=np.maximum(x['C'] - xp['C'], 0) * self.omega * self.delta)
+            # expected_obs['reported'] = Poisson(rate=np.maximum(x['C'] - xp['C'], 0) * self.omega * self.delta)
+            expected_obs['flight_int'] = Binomial(n=self.flight_passengers[t], p=(x['exp_2'] + (1 - self.omega) *
+                                                                                  (x['inf_1'] + x['inf_2'])) / self.N)  # x['exp_1']
 
         if self.use_validation:
-            expected_obs['flight_int'] = Binomial(n=self.flight_passengers[t],
-                                                  p=(x['exp_2'] + (1 - self.omega) * (x['inf_1'] + x['inf_2'])) / self.N)
             for country in self.relative_risk.keys():
                 if t == 0:
                     expected_obs['reported_int_' + country] = Poisson(rate=x['C_int'] * self.relative_risk[country])

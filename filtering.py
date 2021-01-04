@@ -58,25 +58,49 @@ if __name__ == '__main__':
     # Define SMC algorithm parameters
     n_particles = 2000  # Number of particles
     n_runs = 200  # Number of runs
-    resampling_mtd = 'multinomial'
+    resampling_mtd = 'ssp'  # multinomial
 
     # Run algorithm n_runs times / for one run, just do "pf.run()"
     samples = []
+    logv = []
     for run in range(n_runs):
         print(run)
+        Lt = []
         # Define Particle Filtering algorithm
         pf = particles.SMC(fk=fk_model, N=n_particles, resampling=resampling_mtd, store_history=True, summaries=False)
         # Run algorithm
         # pdb.set_trace()
+        for t in range(time_range):
+            pf.next()
+            # pdb.set_trace()
+            # if pf.wgts.lw.mean():
+            Lt.append(pf.wgts.lw.mean())
+            # else:
+            #    Lt.append(1)
+        logv.append(Lt)  # np.cumprod(Lt)
 
-        pf.run()
+        # pf.run()
         # Sample latent variables from SMC-estimated distribution
         sample = pf.hist.backward_sampling(1)
         samples.append(np.array(sample))
     if n_runs == 1:
         samples = samples[0]
     samples = np.array(samples)
+    logv = np.array(logv)
 
+
+    # Save log_vraisemblance
+    x = np.arange(time_range)
+    logv_mean = logv.mean(axis=0)
+    logv_std = logv.std(axis=0)
+    logv_ci = 1.96 * logv_std / np.sqrt(n_runs)
+    plt.figure()
+    plt.title('Log vraisemblance y - Estimated by SMC ({} runs, {} particles)'.format(n_runs, n_particles))
+    plt.plot(x, logv_mean, color='royalblue')
+    plt.fill_between(x, logv_mean - logv_ci, logv_mean + logv_ci, color='lightblue')
+    plt.xlabel('Time steps')
+    plt.ylabel('Log-vraisemblance')
+    plt.savefig('logvraisemblance.png')
 
     # Plot estimated R0
     x = np.arange(time_range)

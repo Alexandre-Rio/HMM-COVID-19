@@ -59,8 +59,11 @@ relative_risk = dict(zip(relative_risk[:, 0], relative_risk[:, 1]))
 
 # Define Erlang Distribution class
 class Erlang(distrib.LocScaleDist):
+    def __init__(self, a):
+        super(Erlang, self).__init__()
+        self.a = a
     def rvs(self, size=None):
-        return erlang.rvs(a=1, loc=self.loc, scale=self.scale,
+        return erlang.rvs(a=self.a, loc=self.loc, scale=self.scale,
                           size=self.shape(size))
     def logpdf(self, x):
         if np.isnan(x):
@@ -94,9 +97,9 @@ if __name__ == '__main__':
     def prior_distributions():
         prior = OrderedDict()
         prior['a'] = distrib.Gamma(1, 2)
-        prior['sigma'] = Erlang(scale=5.2)
-        prior['kappa'] = Exponential(scale=3)
-        prior['gamma'] = Erlang(scale=2.9)
+        prior['sigma'] = Erlang(a=5.2)
+        prior['kappa'] = Exponential(scale=6.1)
+        prior['gamma'] = Erlang(a=2.9)
         prior['delta'] = distrib.Uniform(0, 1)
         prior['pw'] = distrib.Uniform(0, 1)
         prior['pt'] = distrib.Uniform(0, 1)
