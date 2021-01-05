@@ -77,7 +77,7 @@ if __name__ == '__main__':
             Lt.append(pf.wgts.lw.mean())
             # else:
             #    Lt.append(1)
-        logv.append(Lt)  # np.cumprod(Lt)
+        logv.append(np.cumsum(Lt))  # np.cumprod(Lt)
 
         # pf.run()
         # Sample latent variables from SMC-estimated distribution

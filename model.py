@@ -180,14 +180,14 @@ class TransmissionModelExtended(ssm.StateSpaceModel):
             expected_obs['onset'] = Poisson(rate=x['D'] * self.omega * self.delta * self.pw)
             expected_obs['onset_int'] = Poisson(rate=x['D_int'] * self.omega * self.pt)
             # expected_obs['reported'] = Poisson(rate=x['C'] * self.omega * self.delta)
-            expected_obs['flight_int'] = Binomial(n=self.flight_passengers[t], p=(x['exp_2'] + (1 - self.omega) *
+            expected_obs['flight_int'] = Binomial(n=self.flight_passengers[t], p=(x['exp_1'] + x['exp_2'] + (1 - self.omega) *
                                                                                   (x['inf_1'] + x['inf_2'])) / self.N)  # x['exp_1']
 
         elif t > 0:
             expected_obs['onset'] = Poisson(rate=np.maximum(x['D'] - xp['D'], 0) * self.omega * self.delta * self.pw)
             expected_obs['onset_int'] = Poisson(rate=np.maximum(x['D_int'] - xp['D_int'], 0) * self.omega * self.pt)
             # expected_obs['reported'] = Poisson(rate=np.maximum(x['C'] - xp['C'], 0) * self.omega * self.delta)
-            expected_obs['flight_int'] = Binomial(n=self.flight_passengers[t], p=(x['exp_2'] + (1 - self.omega) *
+            expected_obs['flight_int'] = Binomial(n=self.flight_passengers[t], p=(x['exp_1'] + x['exp_2'] + (1 - self.omega) *
                                                                                   (x['inf_1'] + x['inf_2'])) / self.N)  # x['exp_1']
 
         if self.use_validation:
