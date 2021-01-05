@@ -15,7 +15,7 @@ import pdb
 
 os.chdir(os.getcwd())  # Change directory to current working directory
 time_range = 82
-use_validation = False
+use_validation = True
 
 # Load data
 local_case_data_onset = pd.read_csv('data/local_case_data_onset.csv', encoding='cp1252')
@@ -42,7 +42,6 @@ for field in data_dict.keys():
 # Format data
 data = format_data(data_dict)
 
-
 #####################################################
 ############## FILTERING ############################
 #####################################################
@@ -50,6 +49,9 @@ data = format_data(data_dict)
 # Define model
 model = TransmissionModelExtended(**theta)
 model.use_validation = use_validation
+
+# Use simulated data (comment if not)
+# states, data = model.simulate(time_range)
 
 # Define Feyman-Kac model
 fk_model = ssm.Bootstrap(ssm=model, data=data)
@@ -59,14 +61,15 @@ if __name__ == '__main__':
     # Define SMC algorithm parameters
     n_particles = 2000  # Number of particles
     n_runs = 200  # Number of runs
-    resampling_mtd = 'ssp'
+    resampling_mtd = 'systematic'
 
     # Run algorithm n_runs times / for one run, just do "pf.run()"
     samples = []
     for run in range(n_runs):
         print(run)
         # Define Particle Filtering algorithm
-        pf = particles.SMC(fk=fk_model, N=n_particles, resampling=resampling_mtd, store_history=True, summaries=False)
+        pf = particles.SMC(fk=fk_model, N=n_particles, resampling=resampling_mtd, store_history=True, summaries=False,
+                           ESSrmin=0.5)
         # Run algorithm
         # pdb.set_trace()
 
@@ -103,6 +106,8 @@ if __name__ == '__main__':
     plt.fill_between(x, r0_quantiles[0, period_interest], r0_quantiles[4, period_interest], color='lightblue')
     plt.fill_between(x, r0_quantiles[1, period_interest], r0_quantiles[3, period_interest], color='tab:blue')
     plt.plot(x, r0_quantiles[2, period_interest], color='black')
+    plt.barh(y=1, width=0.5, color='black')
+    plt.bar(x=63, width=0.5, color='red')
     plt.ylim(0, 12)
     plt.xlabel('Time steps')
     plt.ylabel('Estimated R0')
