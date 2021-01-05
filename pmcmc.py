@@ -90,8 +90,9 @@ class Exponential(distrib.LocScaleDist):
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--n_iter', type=int, default=10)
+    parser.add_argument('--n_iter', type=int, default=200)
     parser.add_argument('--nx', type=int, default=2e3, help='Number of X particles')
+    parser.add_argument('--sigma', type=float, default=.1, help='scale of random walk transition')
     args = parser.parse_args()
 
     def prior_distributions():
@@ -108,21 +109,21 @@ if __name__ == '__main__':
 
     prior = prior_distributions()
 
-
     pmmh = PMMH(niter=args.n_iter,
                 ssm_cls=TransmissionModelExtended,
                 prior=prior,  # StructDist
                 data=data,  # list-like
                 fk_cls=ssm.Bootstrap,
                 Nx=int(args.nx),
-                verbose=20
+                verbose=args.n_iter,
+                rw_cov=args.sigma*np.eye(8)
                 # theta0=theta  # structured array of length 1
     )
 
     pmmh.run()
     pdb.set_trace()
-
-   # pdb.set_trace()
+    pmmh.chain.lpost
+    pmmh.chain.theta  # pmmh.chain.arr
 
 
 

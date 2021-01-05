@@ -74,10 +74,10 @@ if __name__ == '__main__':
             pf.next()
             # pdb.set_trace()
             # if pf.wgts.lw.mean():
-            Lt.append(pf.wgts.lw.mean())
+            Lt.append(pf.logLt)
             # else:
             #    Lt.append(1)
-        logv.append(np.cumsum(Lt))  # np.cumprod(Lt)
+        logv.append(Lt)
 
         # pf.run()
         # Sample latent variables from SMC-estimated distribution
