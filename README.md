@@ -23,6 +23,58 @@ Information about evacuation flights:
 - *flight_info*: 1 if one or several passengers have been tested positive in evacuation flights. 0 otherwise. All countries considered.
 - *flight_prop*: First column indicates the number of passengers that have been tested positive in evacuation flights. Second column indicates the total number of passengers traveling in those evacuation flights. This allows to compute the proportion of passengers on evacuation flights that tested positive for SARS-CoV-2. All countries considered.
 
+# Particles
+
+There are a lot of missing values in the data. To deal with it,
+the authors set the likelihood to zero for a missing value. 
+
+In order to reproduce this idea straightforwardly with
+`particles`, just change the `logpdf` function of 
+classes `Poisson` and `Binomial` (the two distributions 
+we use to fit the data in the model).
+
+`Poisson`
+```
+    def logpdf(self, x):
+        if np.isnan(x):
+            return 0
+        else:
+            return stats.poisson.logpmf(x, self.rate)
+```
+
+`Binomial`
+```
+    def logpdf(self, x):
+        if np.isnan(x):
+            return 0
+        else:
+            return stats.binom.logpmf(x, self.n, self.p)
+```
+
+Furthermore, here are some modifications we made to solve errors we met :
+`resampling.py` line 213 (class Weights)
+```
+    def __init__(self, lw=None):
+        if isinstance(lw, float):
+            self.lw = np.array(lw)
+        else:
+            self.lw = lw
+        if lw is not None:
+            self.lw[np.isnan(self.lw)] = -np.inf  # - np.inf
+            self.W = exp_and_normalise(self.lw)
+            self.ESS = 1. / np.sum(self.W ** 2)
+```
+
+`resampling.py` line 431 (def resampling_scheme)
+```
+    @functools.wraps(func)
+    def modif_func(W, M=None):
+        if not isinstance(W, np.ndarray):
+            W = np.array([W])
+        M = W.shape[0] if M is None else M
+        return func(W, M)
+```
+
 # State-Space Model
 
 The State-Space Model described in the Appendix is implemented in `model.py`.
