@@ -52,6 +52,7 @@ we use to fit the data in the model).
 ```
 
 Furthermore, here are some modifications we made to solve errors we met :
+
 `resampling.py` line 213 (class Weights)
 ```
     def __init__(self, lw=None):
