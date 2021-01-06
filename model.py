@@ -85,17 +85,10 @@ class TransmissionModelExtended(ssm.StateSpaceModel):
         self.passengers = 3300
         self.f = self.passengers / self.N
 
-        # inv
-        self.gamma = 1 / self.gamma
-        self.sigma = 1 / self.sigma
-        self.kappa = 1 / self.kappa
-
-        self.initial_values = {'beta': self.initial_r0 * self.gamma, 'sus': self.N - 1,
+        self.initial_values = {'beta': theta['initial_r0'] * (1 / theta['gamma']), 'sus': theta['N'] - 1,
                                'exp_1': 0, 'exp_2': 0, 'exp_1_int': 0, 'exp_2_int': 0, 'inf_1': 1/2, 'inf_2': 1/2,
                                'Q': 0, 'Q_int': 0, 'D': 0, 'D_int': 0, 'C': 0, 'C_int': 0
                                }
-
-
         # Number of flight passengers from flight_prop (for validation)
         flight_prop = pd.read_csv('data/flight_prop.csv', encoding='cp1252')
         self.flight_passengers = flight_prop['flight_prop.2'].values
@@ -135,19 +128,20 @@ class TransmissionModelExtended(ssm.StateSpaceModel):
     def update_x(self, t, xp):
         self.sus = np.maximum(xp['sus'] - xp['beta'] * xp['sus'] * (xp['inf_1'] + xp['inf_2']) / self.N, 0).astype('int64')
         self.exp_1 = xp['exp_1'] + (1 - (t < self.travel_restriction) * self.f) * \
-                xp['beta'] * xp['sus'] * (xp['inf_1'] + xp['inf_2']) / self.N - 2 * self.sigma * xp['exp_1']
-        self.exp_2 = xp['exp_2'] + 2 * self.sigma * xp['exp_1'] - 2 * self.sigma * xp['exp_2']
-        self.inf_1 = xp['inf_1'] + 2 * self.sigma * xp['exp_2'] - 2 * self.gamma * xp['inf_1']
-        self.inf_2 = xp['inf_2'] + 2 * self.gamma * xp['inf_1'] - 2 * self.gamma * xp['inf_2']
-        self.Q = xp['Q'] + 2 * self.sigma * xp['exp_2'] * np.exp(- self.gamma * self.kappa) - self.kappa * xp['Q']
-        self.D = xp['D'] + 2 * self.sigma * xp['exp_2'] * np.exp(- self.gamma * self.kappa)
-        self.C = xp['C'] + self.kappa * xp['Q']
+                xp['beta'] * xp['sus'] * (xp['inf_1'] + xp['inf_2']) / self.N - 2 * (1 / self.sigma) * xp['exp_1']
+        self.exp_2 = xp['exp_2'] + 2 * (1 / self.sigma) * xp['exp_1'] - 2 * (1 / self.sigma) * xp['exp_2']
+        self.inf_1 = xp['inf_1'] + 2 * (1 / self.sigma) * xp['exp_2'] - 2 * (1 / self.gamma) * xp['inf_1']
+        self.inf_2 = xp['inf_2'] + 2 * (1 / self.gamma) * xp['inf_1'] - 2 * (1 / self.gamma) * xp['inf_2']
+        self.Q = xp['Q'] + 2 * (1 / self.sigma) * xp['exp_2'] * np.exp(- (1 / self.gamma) * (1 / self.kappa)) - (1 / self.kappa) * xp['Q']
+        self.D = xp['D'] + 2 * (1 / self.sigma) * xp['exp_2'] * np.exp(- (1 / self.gamma) * (1 / self.kappa))
+        self.C = xp['C'] + (1 / self.kappa) * xp['Q']
         self.exp_1_int = xp['exp_1_int'] + (t < self.travel_restriction) * self.f * \
-                    xp['beta'] * xp['sus'] * (xp['inf_1'] + xp['inf_2']) / self.N - 2 * self.sigma * xp['exp_1_int']
-        self.exp_2_int = xp['exp_2_int'] + 2 * self.sigma * xp['exp_1_int'] - 2 * self.sigma * xp['exp_2_int']
-        self.Q_int = xp['Q_int'] + 2 * self.sigma * xp['exp_2_int'] * np.exp(- self.gamma * self.kappa) - self.kappa * xp['Q_int']
-        self.D_int = xp['D_int'] + 2 * self.sigma * xp['exp_2_int'] * np.exp(- self.gamma * self.kappa)
-        self.C_int = xp['C_int'] + self.kappa * xp['Q_int']
+                    xp['beta'] * xp['sus'] * (xp['inf_1'] + xp['inf_2']) / self.N - 2 * (1 / self.sigma) * xp['exp_1_int']
+        self.exp_2_int = xp['exp_2_int'] + 2 * (1 / self.sigma) * xp['exp_1_int'] - 2 * (1 / self.sigma) * xp['exp_2_int']
+        self.Q_int = xp['Q_int'] + 2 * (1 / self.sigma) * xp['exp_2_int'] * np.exp(- (1 / self.gamma) * (1 / self.kappa)) - (1 / self.kappa) * xp['Q_int']
+        self.D_int = xp['D_int'] + 2 * (1 / self.sigma) * xp['exp_2_int'] * np.exp(- (1 / self.gamma) * (1 / self.kappa))
+        self.C_int = xp['C_int'] + (1 / self.kappa) * xp['Q_int']
+
 
     def PX(self, t, xp):  # Distribution of X_t given X_{t-1}=xp (p=past)
 
@@ -180,17 +174,19 @@ class TransmissionModelExtended(ssm.StateSpaceModel):
             expected_obs['onset'] = Poisson(rate=x['D'] * self.omega * self.delta * self.pw)
             expected_obs['onset_int'] = Poisson(rate=x['D_int'] * self.omega * self.pt)
             # expected_obs['reported'] = Poisson(rate=x['C'] * self.omega * self.delta)
-            expected_obs['flight_int'] = Binomial(n=self.flight_passengers[t], p=(x['exp_1'] + x['exp_2'] + (1 - self.omega) *
-                                                                                  (x['inf_1'] + x['inf_2'])) / self.N)  # x['exp_1']
+            expected_obs['flight_int'] = Binomial(n=self.flight_passengers[t],
+                                                  p=(x['exp_2'] + (1 - self.omega) * (x['inf_1'] + x['inf_2'])) / self.N)
 
         elif t > 0:
             expected_obs['onset'] = Poisson(rate=np.maximum(x['D'] - xp['D'], 0) * self.omega * self.delta * self.pw)
             expected_obs['onset_int'] = Poisson(rate=np.maximum(x['D_int'] - xp['D_int'], 0) * self.omega * self.pt)
             # expected_obs['reported'] = Poisson(rate=np.maximum(x['C'] - xp['C'], 0) * self.omega * self.delta)
-            expected_obs['flight_int'] = Binomial(n=self.flight_passengers[t], p=(x['exp_1'] + x['exp_2'] + (1 - self.omega) *
-                                                                                  (x['inf_1'] + x['inf_2'])) / self.N)  # x['exp_1']
+            expected_obs['flight_int'] = Binomial(n=self.flight_passengers[t],
+                                                  p=(x['exp_2'] + (1 - self.omega) * (x['inf_1'] + x['inf_2'])) / self.N)
 
         if self.use_validation:
+            expected_obs['flight_int'] = Binomial(n=self.flight_passengers[t],
+                                                  p=(x['exp_2'] + (1 - self.omega) * (x['inf_1'] + x['inf_2'])) / self.N)
             for country in self.relative_risk.keys():
                 if t == 0:
                     expected_obs['reported_int_' + country] = Poisson(rate=x['C_int'] * self.relative_risk[country])
@@ -228,5 +224,6 @@ if __name__ == '__main__':
     avg_sim_states = sim_states.mean(axis=0)
     avg_sim_data = sim_data.mean(axis=0)
 
+    pdb.set_trace()
 
     end = True

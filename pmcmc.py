@@ -7,6 +7,7 @@ Created on Sat Nov 7 12:47:39 2020
 """
 
 import os
+import json
 import pdb
 import argparse
 from matplotlib import pyplot as plt
@@ -19,6 +20,10 @@ from particles import state_space_models as ssm  # where state-space models are 
 from model import *
 from collections import OrderedDict
 from data_processing import format_data, int_case_conf_dict, flight_prop_processed
+from uuid import uuid4
+RUN_ID = str(uuid4())[0:4]
+path_save = "results_pmmh/{}".format(RUN_ID)
+os.makedirs(path_save, exist_ok=True)
 
 local_case_data_onset = pd.read_csv('data/local_case_data_onset.csv', encoding='cp1252')
 local_case_data_conf = pd.read_csv('data/local_case_data_conf.csv', encoding='cp1252')
@@ -90,9 +95,10 @@ class Exponential(distrib.LocScaleDist):
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
+    parser.add_argument('--n_runs', type=int, default=100)
     parser.add_argument('--n_iter', type=int, default=200)
     parser.add_argument('--nx', type=int, default=2e3, help='Number of X particles')
-    parser.add_argument('--sigma', type=float, default=.1, help='scale of random walk transition')
+    parser.add_argument('--tau', type=float, default=.33, help='scale of random walk transition')
     args = parser.parse_args()
 
     def prior_distributions():
@@ -108,23 +114,86 @@ if __name__ == '__main__':
         return distrib.StructDist(prior)
 
     prior = prior_distributions()
+    theta_names = prior.laws.keys()
 
-    pmmh = PMMH(niter=args.n_iter,
-                ssm_cls=TransmissionModelExtended,
-                prior=prior,  # StructDist
-                data=data,  # list-like
-                fk_cls=ssm.Bootstrap,
-                Nx=int(args.nx),
-                verbose=args.n_iter,
-                rw_cov=args.sigma*np.eye(8)
-                # theta0=theta  # structured array of length 1
-    )
+    theta_prior = {k: [] for k in theta_names}
+    theta_hat = {k: [] for k in theta_names}
+    logv, msjd = [], []
 
-    pmmh.run()
-    pdb.set_trace()
-    pmmh.chain.lpost
-    pmmh.chain.theta  # pmmh.chain.arr
+    for run in range(args.n_runs):
 
+        print(run)
+
+        pmmh = PMMH(niter=args.n_iter,
+                    ssm_cls=TransmissionModelExtended,
+                    prior=prior,  # StructDist
+                    data=data,  # list-like
+                    fk_cls=ssm.Bootstrap,
+                    Nx=int(args.nx),
+                    verbose=5,
+                    rw_cov=args.tau * np.eye(8),
+                    adaptive=True
+                    )
+
+        pmmh.run()
+
+        logv.append(pmmh.chain.lpost[-1])
+        msjd.append(pmmh.mean_sq_jump_dist())
+        for k in theta_names:
+            theta_prior[k].append(pmmh.chain.theta[k][0])
+            theta_hat[k].append(pmmh.chain.theta[k][-1])
+
+    msjd = np.array(msjd)
+    logv = np.array(logv)
+
+    # Save log_vraisemblance
+    logv_mean = logv.mean(axis=0)
+    logv_std = logv.std(axis=0)
+    logv_ci = 1.96 * logv_std / np.sqrt(args.n_runs)
+    plt.figure()
+    plt.title('Log vraisemblance y - Estimated by PMMH ({} particles)'.format(args.nx))
+    plt.hist(logv, bins=15, color='royalblue')
+    plt.axvline(logv[~np.isnan(logv)].mean(), color='k', linestyle='dashed', linewidth=1)
+    plt.axvline(np.median(logv[~np.isnan(logv)]), color='k', linestyle='dashed', linewidth=1)
+
+    min_ylim, max_ylim = plt.ylim()
+    plt.text(logv[~np.isnan(logv)].mean() * 1.1, max_ylim * 0.9, 'Mean: {:.2f}'.format(logv[~np.isnan(logv)].mean()))
+    plt.text(np.median(logv[~np.isnan(logv)]) * 1.1, max_ylim * 0.8,
+             'Median: {:.2f}'.format(np.median(logv[~np.isnan(logv)])))
+
+    plt.xlabel('Log-vraisemblance y')
+    plt.savefig(os.path.join(path_save, 'logvraisemblance.png'))
+
+    # Save mean squared jump distance
+    msjd_mean = msjd.mean(axis=0)
+    msjd_std = msjd.std(axis=0)
+    msjd_ci = 1.96 * msjd_std / np.sqrt(args.n_runs)
+
+    plt.figure()
+    plt.title('Mean Squared jump distance'.format(args.nx))
+    plt.hist(msjd, bins=15, color='royalblue')
+    plt.axvline(msjd[~np.isnan(msjd)].mean(), color='k', linestyle='dashed', linewidth=1)
+    plt.axvline(np.median(msjd[~np.isnan(msjd)]), color='k', linestyle='dashed', linewidth=1)
+
+    min_ylim, max_ylim = plt.ylim()
+    plt.text(msjd[~np.isnan(msjd)].mean() * 1.1, max_ylim * 0.9, 'Mean: {:.2f}'.format(msjd[~np.isnan(msjd)].mean()))
+    plt.text(np.median(msjd[~np.isnan(msjd)]) * 1.1, max_ylim * 0.8,
+             'Median: {:.2f}'.format(np.median(msjd[~np.isnan(msjd)])))
+
+    plt.xlabel('mean squared jump distance')
+    plt.savefig(os.path.join(path_save, 'msjd.png'))
+
+    # Save theta
+    with open(os.path.join(path_save, 'theta_prior.json'), 'w') as fj:
+        json.dump(theta_prior, fj)
+    with open(os.path.join(path_save, 'theta_hat.json'), 'w') as fj:
+        json.dump(theta_hat, fj)
+
+
+    # pdb.set_trace()
+    # pmmh.chain.lpost
+    # pmmh.chain.theta  # pmmh.chain.arr
+    # pmmh.mean_sq_jump_dist()
 
 
 
