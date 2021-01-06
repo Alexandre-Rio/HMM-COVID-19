@@ -190,12 +190,6 @@ if __name__ == '__main__':
         json.dump(theta_hat, fj)
 
 
-    # pdb.set_trace()
-    # pmmh.chain.lpost
-    # pmmh.chain.theta  # pmmh.chain.arr
-    # pmmh.mean_sq_jump_dist()
-
-
 
 
 
