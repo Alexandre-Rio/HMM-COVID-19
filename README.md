@@ -4,7 +4,7 @@ Implementation of the paper **'Early dynamics of transmission and control of COV
 modelling study'**, using the `particles` package.
 Uses code from `https://github.com/adamkucharski/2020-ncov`.
 
-For the purpose of the Fall 2021 class of "Hidden Markov models and Sequential Monte-Carlo methods" at ENSAE. Final grade: 16/20.
+For the purpose of the Fall 2020 class of "Hidden Markov models and Sequential Monte-Carlo methods" at ENSAE. Final grade: 16/20.
 
 # Processed data
 
